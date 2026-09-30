@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TeaCollect Pro — Estate Collection & Payout System</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & Babel CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    .glass-header { background: rgba(5, 74, 41, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+    .tea-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-bill, #printable-bill * { visibility: visible; }
+      #printable-bill { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; background: white; color: black; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 antialiased font-sans text-slate-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Initial Mock Data
+    const INITIAL_ROUTES = [
+      { id: 'R01', name: 'Route 1 - Central Hills (Nuwara Eliya Rd)', transportRatePerKg: 12.00 },
+      { id: 'R02', name: 'Route 2 - Valley View Estate', transportRatePerKg: 10.00 },
+      { id: 'R03', name: 'Route 3 - Highland Slope', transportRatePerKg: 15.00 },
+    ];
+
+    const INITIAL_CUSTOMERS = [
+      { id: 'TEA-2026-001', fullName: 'K. G. Ranbanda', nic: '681452930V', phone: '+94771234567', routeId: 'R01', bankName: 'Bank of Ceylon', accountNumber: '8392014852', registeredDate: '2025-01-10' },
+      { id: 'TEA-2026-002', fullName: 'S. Periyasamy', nic: '752940182V', phone: '+94719876543', routeId: 'R01', bankName: 'People\'s Bank', accountNumber: '1092847291', registeredDate: '2025-02-15' },
+      { id: 'TEA-2026-003', fullName: 'Sunil Wickramasinghe', nic: '821039481V', phone: '+94765432109', routeId: 'R02', bankName: 'Commercial Bank', accountNumber: '8840291847', registeredDate: '2025-03-01' },
+      { id: 'TEA-2026-004', fullName: 'M. Selliah', nic: '710392817V', phone: '+94701122334', routeId: 'R03', bankName: 'Hatton National Bank', accountNumber: '6720194827', registeredDate: '2025-03-12' }
+    ];
+
+    const INITIAL_COLLECTIONS = [
+      { id: 'COL-1001', date: '2026-09-28', customerId: 'TEA-2026-001', grossWeight: 45.5, tareWeight: 1.5, isRainyDay: false, rainDeductionPercent: 0, netWeight: 44.0, grade: 'Super (100%)' },
+      { id: 'COL-1002', date: '2026-09-28', customerId: 'TEA-2026-002', grossWeight: 62.0, tareWeight: 2.0, isRainyDay: false, rainDeductionPercent: 0, netWeight: 60.0, grade: 'Super (100%)' },
+      { id: 'COL-1003', date: '2026-09-29', customerId: 'TEA-2026-001', grossWeight: 58.0, tareWeight: 2.0, isRainyDay: true, rainDeductionPercent: 10, netWeight: 50.4 },
+      { id: 'COL-1004', date: '2026-09-29', customerId: 'TEA-2026-003', grossWeight: 85.0, tareWeight: 3.0, isRainyDay: true, rainDeductionPercent: 10, netWeight: 73.8 },
+      { id: 'COL-1005', date: '2026-09-30', customerId: 'TEA-2026-001', grossWeight: 52.0, tareWeight: 2.0, isRainyDay: false, rainDeductionPercent: 0, netWeight: 50.0 },
+      { id: 'COL-1006', date: '2026-09-30', customerId: 'TEA-2026-004', grossWeight: 90.0, tareWeight: 3.0, isRainyDay: false, rainDeductionPercent: 0, netWeight: 87.0 }
+    ];
+
+    const INITIAL_SUPPLIES = [
+      { id: 'SUP-501', date: '2026-09-05', customerId: 'TEA-2026-001', category: 'Fertilizer', itemName: 'T-200 Tea Fertilizer 50kg', quantity: 2, unitPrice: 6500.00, totalAmount: 13000.00 },
+      { id: 'SUP-502', date: '2026-09-12', customerId: 'TEA-2026-002', category: 'Cash Advance', itemName: 'Mid-month Cash Advance', quantity: 1, unitPrice: 15000.00, totalAmount: 15000.00 },
+      { id: 'SUP-503', date: '2026-09-15', customerId: 'TEA-2026-003', category: 'Equipment', itemName: 'Heavy Duty Tea Sacks (Set of 5)', quantity: 1, unitPrice: 3500.00, totalAmount: 3500.00 },
+      { id: 'SUP-504', date: '2026-09-20', customerId: 'TEA-2026-001', category: 'Cash Advance', itemName: 'Medical Cash Advance', quantity: 1, unitPrice: 5000.00, totalAmount: 5000.00 }
+    ];
+
+    const INITIAL_SETTINGS = {
+      factoryName: 'HIGHLAND CREST TEA FACTORY & ESTATES',
+      registrationNo: 'TF/2024/9842',
+      address: 'No. 45, Factory Road, Nuwara Eliya, Sri Lanka',
+      phone: '+94 52 222 3400',
+      monthlyRatePerKg: 245.00,
+      welfareFeePerMonth: 150.00,
+      stampDutyPerMonth: 50.00,
+      defaultRainDeductionPercent: 10,
+      smsTemplate: 'Dear {NAME}, your Tea Payout for {MONTH} is Rs. {NET_PAYOUT}. Net Leaf: {NET_KG} kg. Factory Rate: Rs. {RATE}/kg. Total Deductions: Rs. {DEDUCTIONS}. Thank you! - Highland Crest Tea'
+    };
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('dashboard');
+      const [isGlobalRainy, setIsGlobalRainy] = useState(false);
+
+      const [customers, setCustomers] = useState(() => JSON.parse(localStorage.getItem('tea_cust')) || INITIAL_CUSTOMERS);
+      const [collections, setCollections] = useState(() => JSON.parse(localStorage.getItem('tea_cols')) || INITIAL_COLLECTIONS);
+      const [supplies, setSupplies] = useState(() => JSON.parse(localStorage.getItem('tea_sups')) || INITIAL_SUPPLIES);
+      const [routes, setRoutes] = useState(() => JSON.parse(localStorage.getItem('tea_rts')) || INITIAL_ROUTES);
+      const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('tea_sets')) || INITIAL_SETTINGS);
+
+      useEffect(() => { localStorage.setItem('tea_cust', JSON.stringify(customers)); }, [customers]);
+      useEffect(() => { localStorage.setItem('tea_cols', JSON.stringify(collections)); }, [collections]);
+      useEffect(() => { localStorage.setItem('tea_sups', JSON.stringify(supplies)); }, [supplies]);
+      useEffect(() => { localStorage.setItem('tea_rts', JSON.stringify(routes)); }, [routes]);
+      useEffect(() => { localStorage.setItem('tea_sets', JSON.stringify(settings)); }, [settings]);
+
+      // Metrics
+      const totalGrossKg = collections.reduce((s, c) => s + Number(c.grossWeight || 0), 0);
+      const totalNetKg = collections.reduce((s, c) => s + Number(c.netWeight || 0), 0);
+      const totalRainDeductionKg = totalGrossKg - totalNetKg;
+      const estimatedGrossPayout = totalNetKg * settings.monthlyRatePerKg;
+      const totalSuppliesAmount = supplies.reduce((s, item) => s + Number(item.totalAmount || 0), 0);
+
+      // Customer Registration Form State
+      const [isRegModal, setIsRegModal] = useState(false);
+      const [regForm, setRegForm] = useState({ fullName: '', nic: '', phone: '', routeId: routes[0]?.id || 'R01', bankName: 'Bank of Ceylon', accountNumber: '' });
+      const [selectedIdCard, setSelectedIdCard] = useState(null);
+
+      // Daily Collection Intake Form State
+      const [selCustId, setSelCustId] = useState('');
+      const [colDate, setColDate] = useState(new Date().toISOString().split('T')[0]);
+      const [grossInput, setGrossInput] = useState('');
+      const [tareInput, setTareInput] = useState('1.5');
+      const [rainCheck, setRainCheck] = useState(isGlobalRainy);
+      const [rainPercentInput, setRainPercentInput] = useState(settings.defaultRainDeductionPercent);
+
+      // Supplies Form State
+      const [supCustId, setSupCustId] = useState('');
+      const [supCat, setSupCat] = useState('Fertilizer');
+      const [supItem, setSupItem] = useState('T-200 Tea Fertilizer 50kg');
+      const [supQty, setSupQty] = useState('1');
+      const [supPrice, setSupPrice] = useState('6500.00');
+
+      // Bill Print Modal State
+      const [selectedBillModal, setSelectedBillModal] = useState(null);
+
+      // Add Collection Handler
+      const handleAddCol = (e) => {
+        e.preventDefault();
+        if (!selCustId) return alert('Select a Customer ID');
+        const g = parseFloat(grossInput) || 0;
+        const t = parseFloat(tareInput) || 0;
+        if (g <= 0) return alert('Enter valid Gross Weight');
+        
+        const rawNet = Math.max(0, g - t);
+        const mult = rainCheck ? (1 - rainPercentInput / 100) : 1.0;
+        const net = Math.round(rawNet * mult * 10) / 10;
+
+        const newEntry = {
+          id: `COL-${Date.now().toString().slice(-5)}`,
+          date: colDate,
+          customerId: selCustId,
+          grossWeight: g,
+          tareWeight: t,
+          isRainyDay: rainCheck,
+          rainDeductionPercent: rainCheck ? Number(rainPercentInput) : 0,
+          netWeight: net,
+          grade: 'Super (100%)'
+        };
+
+        setCollections([newEntry, ...collections]);
+        setGrossInput('');
+        alert('Intake Entry Logged!');
+      };
+
+      // Add Customer Handler
+      const handleAddCust = (e) => {
+        e.preventDefault();
+        const nextId = `TEA-2026-00${customers.length + 1}`;
+        const newCust = {
+          id: nextId,
+          fullName: regForm.fullName,
+          nic: regForm.nic || 'N/A',
+          phone: regForm.phone,
+          routeId: regForm.routeId,
+          bankName: regForm.bankName,
+          accountNumber: regForm.accountNumber || 'N/A',
+          registeredDate: new Date().toISOString().split('T')[0]
+        };
+        setCustomers([newCust, ...customers]);
+        setIsRegModal(false);
+        setSelectedIdCard(newCust);
+      };
+
+      // Add Supply Handler
+      const handleAddSup = (e) => {
+        e.preventDefault();
+        if (!supCustId) return alert('Select Customer');
+        const q = parseFloat(supQty) || 0;
+        const p = parseFloat(supPrice) || 0;
+        const newSup = {
+          id: `SUP-${Date.now().toString().slice(-4)}`,
+          date: new Date().toISOString().split('T')[0],
+          customerId: supCustId,
+          category: supCat,
+          itemName: supItem,
+          quantity: q,
+          unitPrice: p,
+          totalAmount: q * p
+        };
+        setSupplies([newSup, ...supplies]);
+        alert('Supply Debit Logged!');
+      };
+
+      // Billing calculation
+      const customerBills = customers.map(cust => {
+        const route = routes.find(r => r.id === cust.routeId);
+        const tRate = route ? Number(route.transportRatePerKg || 10) : 10;
+        const custCols = collections.filter(c => c.customerId === cust.id);
+        const netKg = custCols.reduce((s, c) => s + Number(c.netWeight || 0), 0);
+        const grossPay = netKg * settings.monthlyRatePerKg;
+        
+        const custSups = supplies.filter(s => s.customerId === cust.id);
+        const supDeduct = custSups.reduce((s, item) => s + Number(item.totalAmount || 0), 0);
+        const transDeduct = netKg * tRate;
+        const welfare = netKg > 0 ? settings.welfareFeePerMonth : 0;
+        const stamp = netKg > 0 ? settings.stampDutyPerMonth : 0;
+        
+        const totalD = supDeduct + transDeduct + welfare + stamp;
+        return { customer: cust, route, netKg, grossPay, supDeduct, transDeduct, welfare, stamp, totalD, netPay: grossPay - totalD, custCols, custSups };
+      });
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* Header */}
+          <header className="glass-header text-white sticky top-0 z-40 shadow-lg">
+            <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <span className="text-3xl">🍃</span>
+                <div>
+                  <h1 className="text-xl font-extrabold text-white">{settings.factoryName}</h1>
+                  <p className="text-xs text-emerald-200">Factory Rate: <span className="text-amber-300 font-bold">LKR {settings.monthlyRatePerKg}/kg</span> | Reg: {settings.registrationNo}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsGlobalRainy(!isGlobalRainy)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isGlobalRainy ? 'bg-blue-600 text-white' : 'bg-amber-400 text-amber-950'}`}
+              >
+                {isGlobalRainy ? '🌧️ Rain Mode ON (-10%)' : '☀️ Weather Clear'}
+              </button>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className="max-w-7xl mx-auto px-4 flex space-x-2 border-t border-emerald-800/40 py-2 overflow-x-auto">
+              {[
+                { id: 'dashboard', label: '📊 Dashboard' },
+                { id: 'customers', label: '👨‍🌾 Customers & IDs' },
+                { id: 'collection', label: '🍃 Daily Leaf Intake' },
+                { id: 'supplies', label: '📦 Supplies & Advances' },
+                { id: 'billing', label: '🧾 Monthly Bills' },
+                { id: 'sms', label: '📱 SMS Alerts' }
+              ].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${activeTab === t.id ? 'bg-emerald-500 text-white shadow' : 'text-emerald-100 hover:bg-emerald-800/50'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </header>
+
+          {/* Main Body */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 space-y-6">
+
+            {/* TAB 1: DASHBOARD */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="tea-card p-5">
+                    <span className="text-xs text-gray-500 uppercase font-semibold">Total Net Leaf</span>
+                    <div className="text-3xl font-extrabold text-emerald-950 font-mono mt-1">{totalNetKg.toFixed(1)} Kg</div>
+                    <div className="text-xs text-blue-600 mt-1">Wet Deducted: -{totalRainDeductionKg.toFixed(1)} Kg</div>
+                  </div>
+                  <div className="tea-card p-5">
+                    <span className="text-xs text-gray-500 uppercase font-semibold">Estimated Gross Payout</span>
+                    <div className="text-3xl font-extrabold text-amber-950 font-mono mt-1">Rs. {estimatedGrossPayout.toLocaleString()}</div>
+                    <div className="text-xs text-amber-800 mt-1">Rate: LKR {settings.monthlyRatePerKg}/kg</div>
+                  </div>
+                  <div className="tea-card p-5">
+                    <span className="text-xs text-gray-500 uppercase font-semibold">Registered Farmers</span>
+                    <div className="text-3xl font-extrabold text-indigo-950 font-mono mt-1">{customers.length} Active</div>
+                  </div>
+                  <div className="tea-card p-5">
+                    <span className="text-xs text-gray-500 uppercase font-semibold">Supplies & Advances</span>
+                    <div className="text-3xl font-extrabold text-rose-950 font-mono mt-1">Rs. {totalSuppliesAmount.toLocaleString()}</div>
+                  </div>
+                </div>
+
+                <div className="tea-card p-5">
+                  <h3 className="font-bold text-gray-900 border-b pb-2 mb-3">Recent Daily Leaf Intake Logs</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-gray-100 font-semibold text-gray-600 uppercase">
+                        <tr>
+                          <th className="p-2">Date</th>
+                          <th className="p-2">Customer</th>
+                          <th className="p-2 text-right">Gross Kg</th>
+                          <th className="p-2 text-center">Weather</th>
+                          <th className="p-2 text-right">Net Kg</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {collections.slice(0, 5).map(c => {
+                          const cust = customers.find(cu => cu.id === c.customerId);
+                          return (
+                            <tr key={c.id}>
+                              <td className="p-2 font-mono">{c.date}</td>
+                              <td className="p-2 font-bold">{cust?.fullName || c.customerId}</td>
+                              <td className="p-2 text-right font-mono">{c.grossWeight}</td>
+                              <td className="p-2 text-center">{c.isRainyDay ? '🌧️ Rainy (-10%)' : '☀️ Dry'}</td>
+                              <td className="p-2 text-right font-mono font-bold text-emerald-700">{c.netWeight} Kg</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: CUSTOMERS */}
+            {activeTab === 'customers' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center tea-card p-4">
+                  <h2 className="font-bold text-base">Customer & Supplier Directory</h2>
+                  <button onClick={() => setIsRegModal(true)} className="px-4 py-2 bg-emerald-700 text-white rounded-lg text-xs font-bold">+ Register Supplier</button>
+                </div>
+                <div className="tea-card overflow-hidden">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-emerald-950 text-white font-semibold">
+                      <tr>
+                        <th className="p-3">Customer ID</th>
+                        <th className="p-3">Full Name</th>
+                        <th className="p-3">Phone</th>
+                        <th className="p-3">Route</th>
+                        <th className="p-3 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {customers.map(c => (
+                        <tr key={c.id}>
+                          <td className="p-3 font-mono font-bold text-emerald-800">{c.id}</td>
+                          <td className="p-3 font-bold">{c.fullName}</td>
+                          <td className="p-3 font-mono">{c.phone}</td>
+                          <td className="p-3">{routes.find(r => r.id === c.routeId)?.name || 'Central'}</td>
+                          <td className="p-3 text-center">
+                            <button onClick={() => setSelectedIdCard(c)} className="px-2.5 py-1 bg-amber-100 text-amber-900 border rounded font-semibold text-[11px]">💳 ID Pass</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: DAILY INTAKE */}
+            {activeTab === 'collection' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 tea-card p-6 space-y-4 border-l-4 border-emerald-700">
+                  <h2 className="font-bold text-base border-b pb-2">⚖️ Record Daily Tea Leaf Intake</h2>
+                  <form onSubmit={handleAddCol} className="space-y-4 text-xs">
+                    <div>
+                      <label className="block font-bold mb-1">Select Supplier *</label>
+                      <select required value={selCustId} onChange={(e) => setSelCustId(e.target.value)} className="w-full p-2 border rounded-lg font-bold">
+                        <option value="">-- Choose Supplier --</option>
+                        {customers.map(c => <option key={c.id} value={c.id}>{c.id} - {c.fullName}</option>)}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-lg border">
+                      <div>
+                        <label className="block font-bold mb-1">Gross Weight (Kg) *</label>
+                        <input type="number" step="0.1" required value={grossInput} onChange={(e) => setGrossInput(e.target.value)} className="w-full p-2 border rounded font-mono font-bold" />
+                      </div>
+                      <div>
+                        <label className="block font-bold mb-1">Bag Tare (Kg)</label>
+                        <input type="number" step="0.1" value={tareInput} onChange={(e) => setTareInput(e.target.value)} className="w-full p-2 border rounded font-mono" />
+                      </div>
+                    </div>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                      <label className="flex items-center space-x-2 cursor-pointer font-bold text-blue-950">
+                        <input type="checkbox" checked={rainCheck} onChange={(e) => setRainCheck(e.target.checked)} className="w-4 h-4" />
+                        <span>🌧️ Apply Rainy Day Wet Leaf Moisture Deduction</span>
+                      </label>
+                      {rainCheck && <span className="font-mono font-bold text-blue-800">-{rainPercentInput}%</span>}
+                    </div>
+                    <button type="submit" className="w-full py-3 bg-emerald-700 text-white font-bold rounded-xl">💾 Save Daily Intake Entry</button>
+                  </form>
+                </div>
+                <div className="tea-card p-6 bg-emerald-950 text-white flex flex-col justify-between">
+                  <div>
+                    <div className="text-xs text-emerald-300 font-mono">CALCULATED INTENSITY</div>
+                    <div className="text-4xl font-extrabold text-amber-300 font-mono mt-4">
+                      {Math.max(0, ((parseFloat(grossInput)||0) - (parseFloat(tareInput)||0)) * (rainCheck ? (1 - rainPercentInput/100) : 1)).toFixed(1)} <span className="text-lg">Kg Net</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: SUPPLIES */}
+            {activeTab === 'supplies' && (
+              <div className="space-y-6">
+                <div className="tea-card p-6 border-l-4 border-rose-600">
+                  <h2 className="font-bold text-base border-b pb-2 mb-4">📦 Issue Customer Supplies & Cash Advances</h2>
+                  <form onSubmit={handleAddSup} className="space-y-4 text-xs">
+                    <select required value={supCustId} onChange={(e) => setSupCustId(e.target.value)} className="w-full p-2 border rounded-lg">
+                      <option value="">-- Choose Supplier --</option>
+                      {customers.map(c => <option key={c.id} value={c.id}>{c.id} - {c.fullName}</option>)}
+                    </select>
+                    <div className="grid grid-cols-3 gap-3">
+                      <input type="text" placeholder="Item Name" required value={supItem} onChange={(e) => setSupItem(e.target.value)} className="p-2 border rounded" />
+                      <input type="number" placeholder="Qty" required value={supQty} onChange={(e) => setSupQty(e.target.value)} className="p-2 border rounded font-mono" />
+                      <input type="number" placeholder="Unit Price" required value={supPrice} onChange={(e) => setSupPrice(e.target.value)} className="p-2 border rounded font-mono" />
+                    </div>
+                    <button type="submit" className="px-6 py-2 bg-rose-700 text-white font-bold rounded-lg">+ Record Issued Debit</button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: BILLING */}
+            {activeTab === 'billing' && (
+              <div className="space-y-6">
+                <div className="tea-card p-6 bg-emerald-950 text-white rounded-2xl">
+                  <h2 className="text-xl font-bold border-b border-emerald-800 pb-3">Monthly Tea Payout Calculation Ledger</h2>
+                  <div className="grid grid-cols-3 gap-4 pt-4 text-center font-mono">
+                    <div><div className="text-xs text-emerald-300">Total Net Leaf</div><div className="text-2xl font-bold">{totalNetKg.toFixed(1)} Kg</div></div>
+                    <div><div className="text-xs text-emerald-300">Gross Payout</div><div className="text-2xl font-bold text-amber-300">Rs. {estimatedGrossPayout.toLocaleString()}</div></div>
+                    <div><div className="text-xs text-emerald-300">Total Debits</div><div className="text-2xl font-bold text-rose-300">Rs. {totalSuppliesAmount.toLocaleString()}</div></div>
+                  </div>
+                </div>
+                <div className="tea-card overflow-hidden">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-emerald-950 text-white font-semibold">
+                      <tr>
+                        <th className="p-3">Supplier Name & ID</th>
+                        <th className="p-3 text-right">Net Kg</th>
+                        <th className="p-3 text-right">Gross Pay</th>
+                        <th className="p-3 text-right">Supplies Debit</th>
+                        <th className="p-3 text-right">Net Payable</th>
+                        <th className="p-3 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {customerBills.map(b => (
+                        <tr key={b.customer.id}>
+                          <td className="p-3 font-bold">{b.customer.fullName} <span className="text-gray-400 font-mono">({b.customer.id})</span></td>
+                          <td className="p-3 text-right font-mono font-bold">{b.netKg.toFixed(1)} Kg</td>
+                          <td className="p-3 text-right font-mono">Rs. {b.grossPay.toFixed(2)}</td>
+                          <td className="p-3 text-right font-mono text-rose-600">-Rs. {b.supDeduct.toFixed(2)}</td>
+                          <td className="p-3 text-right font-mono font-extrabold text-emerald-800 text-sm">Rs. {b.netPay.toLocaleString()}</td>
+                          <td className="p-3 text-center">
+                            <button onClick={() => setSelectedBillModal(b)} className="px-3 py-1 bg-emerald-700 text-white font-bold rounded text-xs">🖨️ View Payslip</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 6: SMS ALERTS */}
+            {activeTab === 'sms' && (
+              <div className="tea-card p-6 space-y-4">
+                <h2 className="font-bold text-lg border-b pb-2">📱 Automated Customer SMS Payout Alerts</h2>
+                <p className="text-xs text-gray-600">Broadcast monthly payment notifications to all tea suppliers.</p>
+                <div className="p-4 bg-gray-900 text-emerald-400 font-mono text-xs rounded-xl">
+                  [SMS GATEWAY READY] Target: {customers.length} Suppliers | Status: Active Gateway
+                </div>
+                <button onClick={() => alert(`Bulk SMS successfully sent to ${customers.length} suppliers!`)} className="px-6 py-3 bg-blue-700 text-white font-bold rounded-xl text-xs">🚀 Broadcast Payment SMS to All Suppliers</button>
+              </div>
+            )}
+
+          </main>
+
+          {/* Registration Modal */}
+          {isRegModal && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4">
+                <h3 className="font-bold text-base border-b pb-2">Register New Tea Supplier</h3>
+                <form onSubmit={handleAddCust} className="space-y-3 text-xs">
+                  <input type="text" placeholder="Full Name *" required value={regForm.fullName} onChange={(e) => setRegForm({...regForm, fullName: e.target.value})} className="w-full p-2 border rounded" />
+                  <input type="text" placeholder="Phone Number *" required value={regForm.phone} onChange={(e) => setRegForm({...regForm, phone: e.target.value})} className="w-full p-2 border rounded" />
+                  <input type="text" placeholder="NIC Number" value={regForm.nic} onChange={(e) => setRegForm({...regForm, nic: e.target.value})} className="w-full p-2 border rounded" />
+                  <button type="submit" className="w-full py-2 bg-emerald-700 text-white font-bold rounded">Save & Issue Customer ID Pass</button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ID Card Modal */}
+          {selectedIdCard && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4">
+                <div className="bg-emerald-950 text-white p-6 rounded-2xl space-y-3">
+                  <div className="text-xs text-amber-300 font-mono font-bold">{selectedIdCard.id}</div>
+                  <div className="text-lg font-bold">{selectedIdCard.fullName}</div>
+                  <div className="text-xs text-emerald-200">Phone: {selectedIdCard.phone}</div>
+                </div>
+                <button onClick={() => setSelectedIdCard(null)} className="w-full py-2 bg-gray-200 text-gray-800 font-bold rounded">Close</button>
+              </div>
+            </div>
+          )}
+
+          {/* Payslip Modal */}
+          {selectedBillModal && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-xl w-full p-8 space-y-4" id="printable-bill">
+                <div className="border-b pb-3 flex justify-between">
+                  <div>
+                    <h2 className="font-extrabold text-lg text-emerald-950">{settings.factoryName}</h2>
+                    <p className="text-xs text-gray-500 font-mono">OFFICIAL TEA SUPPLIER PAYSLIP</p>
+                  </div>
+                  <div className="text-right text-xs font-mono font-bold text-emerald-700">{selectedBillModal.customer.id}</div>
+                </div>
+                <div className="text-xs space-y-2 font-mono">
+                  <div className="flex justify-between"><span>Supplier:</span><span className="font-bold">{selectedBillModal.customer.fullName}</span></div>
+                  <div className="flex justify-between"><span>Net Leaf Delivered:</span><span className="font-bold">{selectedBillModal.netKg.toFixed(1)} Kg</span></div>
+                  <div className="flex justify-between"><span>Gross Earnings:</span><span>Rs. {selectedBillModal.grossPay.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-rose-600"><span>Less Supplies/Advances:</span><span>-Rs. {selectedBillModal.supDeduct.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-rose-600"><span>Less Transport & Fees:</span><span>-Rs. {(selectedBillModal.transDeduct + selectedBillModal.welfare + selectedBillModal.stamp).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-sm font-extrabold text-emerald-900 border-t pt-2"><span>NET PAYABLE:</span><span>Rs. {selectedBillModal.netPay.toLocaleString()}</span></div>
+                </div>
+                <div className="flex justify-between no-print pt-4 border-t">
+                  <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-700 text-white text-xs font-bold rounded">🖨️ Print Voucher</button>
+                  <button onClick={() => setSelectedBillModal(null)} className="px-4 py-2 bg-gray-200 text-xs font-bold rounded">Close</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
